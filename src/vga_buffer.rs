@@ -36,6 +36,7 @@ const BUFFER_WIDTH: usize = 80;
 
 #[repr(transparent)]
 struct VgaBuffer {
+    /// TODO: Add volatile
     inner: [[ScreenChar; BUFFER_WIDTH]; BUFFER_HEIGHT],
 }
 
@@ -69,10 +70,15 @@ pub struct VgaBufferWriter {
 impl Write for VgaBufferWriter {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         for c in s.bytes() {
-            if c == b'\n' || self.col == BUFFER_WIDTH {
+            if c == b'\n' {
                 self.buffer.print_newline();
                 self.col = 0;
                 continue;
+            }
+
+            if self.col == BUFFER_WIDTH {
+                self.buffer.print_newline();
+                self.col = 0;
             }
 
             self.buffer
@@ -149,4 +155,43 @@ pub fn _print(color: Color, args: core::fmt::Arguments) {
     let mut writer = VGA_BUFFER_WRITER.lock();
     writer.color = color;
     writer.write_fmt(args).unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::vga_buffer::{BUFFER_HEIGHT, BUFFER_WIDTH, VGA_BUFFER_WRITER};
+
+    #[test_case]
+    fn test_println_many() {
+        for _ in 0..200 {
+            println!("test_println_many output");
+        }
+    }
+
+    #[test_case]
+    fn test_println_output() {
+        let s = "Some test string that fits on a single line";
+        println!("{}", s);
+        for (i, c) in s.chars().enumerate() {
+            let screen_char = VGA_BUFFER_WRITER.lock().buffer.inner[BUFFER_HEIGHT - 2][i];
+            assert_eq!(char::from(screen_char.ascii_character), c);
+        }
+    }
+
+    #[test_case]
+    fn test_println_output() {
+        let long_line = [b'A'; BUFFER_WIDTH + 10];
+        let long_line = core::str::from_utf8(&long_line).unwrap();
+        println!("{}", long_line);
+        let chars = long_line.chars().enumerate();
+        for (i, c) in chars {
+            let line_idx = if i < BUFFER_WIDTH {
+                BUFFER_HEIGHT - 3
+            } else {
+                BUFFER_HEIGHT - 2
+            };
+            let screen_char = VGA_BUFFER_WRITER.lock().buffer.inner[line_idx][i % BUFFER_WIDTH];
+            assert_eq!(char::from(screen_char.ascii_character), c, "Index {i}");
+        }
+    }
 }
