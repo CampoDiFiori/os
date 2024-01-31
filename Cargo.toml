@@ -17,6 +17,7 @@ bootloader = "0.9.23"
 lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
 spin = "0.9.8"
 uart_16550 = "0.3.0"
+volatile = "0.2.6"
 x86_64 = "0.14.11"
 
 [package.metadata.bootimage]
@@ -30,3 +31,7 @@ test-success-exit-code = 33         # (0x10 << 1) | 1 defining what exit code QE
 [[test]]
 name = "should_panic"
 harness = false                     # defines whether a test runner is used for an integration test. When it’s set to false, both the default test runner and the custom test runner feature are disabled, so that the test is treated like a normal executable.
+
+[[test]]
+name = "stack_overflow"
+harness = false

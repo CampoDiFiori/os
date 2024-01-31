@@ -162,14 +162,14 @@ mod tests {
     use crate::vga_buffer::{BUFFER_HEIGHT, BUFFER_WIDTH, VGA_BUFFER_WRITER};
 
     #[test_case]
-    fn test_println_many() {
+    fn println_many() {
         for _ in 0..200 {
             println!("test_println_many output");
         }
     }
 
     #[test_case]
-    fn test_println_output() {
+    fn println_output() {
         let s = "Some test string that fits on a single line";
         println!("{}", s);
         for (i, c) in s.chars().enumerate() {
@@ -179,7 +179,7 @@ mod tests {
     }
 
     #[test_case]
-    fn test_println_output() {
+    fn println_long_line() {
         let long_line = [b'A'; BUFFER_WIDTH + 10];
         let long_line = core::str::from_utf8(&long_line).unwrap();
         println!("{}", long_line);

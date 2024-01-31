@@ -11,11 +11,14 @@ extern "C" fn _start() -> ! {
     #[cfg(test)]
     test_main();
 
+    os::init();
+
     os::trace!("Hello");
     os::debug!("Hello");
     os::info!("Hello");
     os::warn!("Hello");
     os::error!("Hello");
+
     loop {}
 }
 
