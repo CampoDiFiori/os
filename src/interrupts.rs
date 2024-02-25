@@ -1,4 +1,6 @@
 use lazy_static::lazy_static;
+use pic8259::ChainedPics;
+use spin;
 
 use crate::println;
 
@@ -31,6 +33,13 @@ extern "x86-interrupt" fn double_fault_handler(
 ) -> ! {
     panic!("EXCEPTION: DOUBLE FAULT\n{:#?}", stack_frame);
 }
+
+/// Configuring interrupts' offset to start right after all the exceptions
+pub const PIC_1_OFFSET: u8 = 32;
+pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
+
+pub static PICS: spin::Mutex<ChainedPics> =
+    spin::Mutex::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
 
 #[cfg(test)]
 mod tests {
