@@ -19,7 +19,7 @@ extern "C" fn _start() -> ! {
     os::warn!("Hello");
     os::error!("Hello");
 
-    loop {}
+    os::hlt_loop();
 }
 
 /// Function called on panic
@@ -27,7 +27,7 @@ extern "C" fn _start() -> ! {
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     os::error!("Error: {info}");
-    loop {}
+    os::hlt_loop();
 }
 
 #[cfg(test)]

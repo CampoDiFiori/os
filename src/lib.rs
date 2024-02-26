@@ -13,9 +13,19 @@ pub mod vga_buffer;
 
 use core::panic::PanicInfo;
 
+use interrupts::PICS;
+
 pub fn init() {
     gdt::init_gdt();
     interrupts::init_idt();
+    unsafe { PICS.lock().initialize() };
+    x86_64::instructions::interrupts::enable();
+}
+
+pub fn hlt_loop() -> ! {
+    loop {
+        x86_64::instructions::hlt();
+    }
 }
 
 pub fn test_panic_handler(info: &PanicInfo) -> ! {
@@ -24,7 +34,7 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
     serial_println!("Error: {}", info);
     serial_println!("");
     io_ports::exit_qemu(io_ports::QemuExitCode::Failed);
-    loop {}
+    hlt_loop();
 }
 
 pub fn test_runner(tests: &[&dyn Testable]) {
@@ -62,7 +72,7 @@ fn trivial_assertion() {
 pub extern "C" fn _start() -> ! {
     init();
     test_main();
-    loop {}
+    hlt_loop();
 }
 
 #[cfg(test)]
