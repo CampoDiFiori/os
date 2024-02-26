@@ -1,6 +1,7 @@
 use core::fmt::Write;
 
 use lazy_static::lazy_static;
+use volatile::Volatile;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,21 +38,21 @@ const BUFFER_WIDTH: usize = 80;
 #[repr(transparent)]
 struct VgaBuffer {
     /// TODO: Add volatile
-    inner: [[ScreenChar; BUFFER_WIDTH]; BUFFER_HEIGHT],
+    inner: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
 }
 
 impl VgaBuffer {
     fn print_char(&mut self, col: usize, c: u8, fcolor: Color, bcolor: Color) {
-        self.inner[BUFFER_HEIGHT - 1][col] = ScreenChar {
+        self.inner[BUFFER_HEIGHT - 1][col].write(ScreenChar {
             ascii_character: c,
             color_code: ((bcolor as u8) << 4) | fcolor as u8,
-        };
+        });
     }
 
     fn print_newline(&mut self) {
         for row in 0..BUFFER_HEIGHT - 1 {
             for col in 0..BUFFER_WIDTH {
-                self.inner[row][col] = self.inner[row + 1][col];
+                self.inner[row][col].write(self.inner[row + 1][col].read());
             }
         }
 
@@ -152,14 +153,19 @@ macro_rules! error {
 
 #[doc(hidden)]
 pub fn _print(color: Color, args: core::fmt::Arguments) {
-    let mut writer = VGA_BUFFER_WRITER.lock();
-    writer.color = color;
-    writer.write_fmt(args).unwrap();
+    x86_64::instructions::interrupts::without_interrupts(|| {
+        let mut writer = VGA_BUFFER_WRITER.lock();
+        writer.color = color;
+        writer.write_fmt(args).unwrap();
+    });
 }
 
 #[cfg(test)]
 mod tests {
+    use x86_64::instructions::interrupts;
+
     use crate::vga_buffer::{BUFFER_HEIGHT, BUFFER_WIDTH, VGA_BUFFER_WRITER};
+    use core::fmt::Write;
 
     #[test_case]
     fn println_many() {
@@ -171,27 +177,34 @@ mod tests {
     #[test_case]
     fn println_output() {
         let s = "Some test string that fits on a single line";
-        println!("{}", s);
-        for (i, c) in s.chars().enumerate() {
-            let screen_char = VGA_BUFFER_WRITER.lock().buffer.inner[BUFFER_HEIGHT - 2][i];
-            assert_eq!(char::from(screen_char.ascii_character), c);
-        }
+        interrupts::without_interrupts(|| {
+            let mut writer = VGA_BUFFER_WRITER.lock();
+            writeln!(writer, "\n{s}").expect("writeln failed");
+            for (i, c) in s.chars().enumerate() {
+                let screen_char = writer.buffer.inner[BUFFER_HEIGHT - 2][i].read();
+                assert_eq!(char::from(screen_char.ascii_character), c);
+            }
+        });
     }
 
     #[test_case]
     fn println_long_line() {
         let long_line = [b'A'; BUFFER_WIDTH + 10];
         let long_line = core::str::from_utf8(&long_line).unwrap();
-        println!("{}", long_line);
-        let chars = long_line.chars().enumerate();
-        for (i, c) in chars {
-            let line_idx = if i < BUFFER_WIDTH {
-                BUFFER_HEIGHT - 3
-            } else {
-                BUFFER_HEIGHT - 2
-            };
-            let screen_char = VGA_BUFFER_WRITER.lock().buffer.inner[line_idx][i % BUFFER_WIDTH];
-            assert_eq!(char::from(screen_char.ascii_character), c, "Index {i}");
-        }
+
+        interrupts::without_interrupts(|| {
+            let mut writer = VGA_BUFFER_WRITER.lock();
+            writeln!(writer, "\n{long_line}").expect("writeln failed");
+            let chars = long_line.chars().enumerate();
+            for (i, c) in chars {
+                let line_idx = if i < BUFFER_WIDTH {
+                    BUFFER_HEIGHT - 3
+                } else {
+                    BUFFER_HEIGHT - 2
+                };
+                let screen_char = writer.buffer.inner[line_idx][i % BUFFER_WIDTH].read();
+                assert_eq!(char::from(screen_char.ascii_character), c, "Index {i}");
+            }
+        });
     }
 }
